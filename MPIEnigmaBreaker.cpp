@@ -18,7 +18,7 @@ MPIEnigmaBreaker::~MPIEnigmaBreaker() {
 
 void MPIEnigmaBreaker::crackMessage() {
 	uint rotorLargestSetting = enigma->getLargestRotorSetting();
-
+	double timeStart = MPI_Wtime();
 	int rank;
 	int size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -27,9 +27,18 @@ void MPIEnigmaBreaker::crackMessage() {
 	if (rank == 0) {
 		cout << "[START] Processes count: " << to_string(size) << endl;
 		cout << "[START] Process " << to_string(rank) << endl;
+		cout << "[" << rank << "] this->messageToDecode: " << this->messageToDecode << endl;
 	}
 
-	double timeStart = MPI_Wtime();
+	uint * buffer = this->messageToDecode;
+	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Bcast(&buffer, this->messageLength, MPI_UNSIGNED, rank, MPI_COMM_WORLD);
+	MPI_Barrier(MPI_COMM_WORLD);
+
+
+	if (rank == 1) {
+		cout << "[" << rank << "] Gotten: \n\tmessageToDecode: " << buffer << endl;
+	}
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -118,10 +127,29 @@ void MPIEnigmaBreaker::getResult( uint *rotorPositions ) {
 }
 
 void MPIEnigmaBreaker::setMessageToDecode( uint *message, uint messageLength ) {
+
 	comparator->setMessageLength(messageLength);
 	this->messageLength = messageLength;
 	this->messageToDecode = message;
 	messageProposal = new uint[ messageLength ];
+
+	// // Detect if multithreading
+	// int rank;
+	// int size;
+	// MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	// MPI_Comm_size(MPI_COMM_WORLD, &size);
+	// cout << "[" << rank << "] Size: " << size << endl;
+
+	// if (size > 1) {
+	// 	// Processes other than root do not really know about any of our message's data - Bcast it to them
+	// 	uint * buffer = this->messageToDecode;
+
+	// 	if (rank == 0) {
+	// 		cout << "[" << rank << "] Broadcasting: \n\tmessageLength: " << this->messageLength << "\n\tmessageToDecode: " << buffer << endl;
+	// 	}
+
+	// 	MPI_Bcast(&buffer, this->messageLength, MPI_UNSIGNED, rank, MPI_COMM_WORLD);
+	// }
 }
 
 void MPIEnigmaBreaker::setSampleToFind(uint *expected, uint expectedLength ) {
