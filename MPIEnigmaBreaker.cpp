@@ -50,16 +50,16 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	uint *r = new uint[ MAX_ROTORS ];
 
-	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size )
-		for ( r[1] = rank; r[1] <= rMax[1]; r[1] += size )
-			for ( r[2] = rank; r[2] <= rMax[2]; r[2] += size )
-				for ( r[3] = rank; r[3] <= rMax[3]; r[3] += size )
-					for ( r[4] = rank; r[4] <= rMax[4]; r[4] += size )
-						for ( r[5] = rank; r[5] <= rMax[5]; r[5] += size )
-							for ( r[6] = rank; r[6] <= rMax[6]; r[6] += size )
-								for ( r[7] = rank; r[7] <= rMax[7]; r[7] += size )
-									for ( r[8] = rank; r[8] <= rMax[8]; r[8] += size )
-										for ( r[9] = rank; r[9] <= rMax[9]; r[9] += size ) {
+	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size )  // This spreads the compute load to all processes EVENLY.
+		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
+			for ( r[2] = 0; r[2] <= rMax[2]; r[2]++ )
+				for ( r[3] = 0; r[3] <= rMax[3]; r[3]++ )
+					for ( r[4] = 0; r[4] <= rMax[4]; r[4]++ )
+						for ( r[5] = 0; r[5] <= rMax[5]; r[5]++ )
+							for ( r[6] = 0; r[6] <= rMax[6]; r[6]++ )
+								for ( r[7] = 0; r[7] <= rMax[7]; r[7]++ )
+									for ( r[8] = 0; r[8] <= rMax[8]; r[8]++ )
+										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ ) {
 											if ( solutionFound( r ) )
 												goto EXIT_ALL_LOOPS;
 										}
