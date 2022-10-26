@@ -7,6 +7,7 @@
 
 #include "MPIEnigmaBreaker.h"
 #include "mpi.h"
+#include "Consts.h"
 
 MPIEnigmaBreaker::MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator ) : EnigmaBreaker(enigma, comparator ) {
 }
@@ -23,15 +24,12 @@ void MPIEnigmaBreaker::crackMessage() {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	cout << "[START] Process " << to_string(rank) << endl;
+	if (rank == 0) {
+		cout << "[START] Processes count: " << to_string(size) << endl;
+		cout << "[START] Process " << to_string(rank) << endl;
+	}
 
 	double timeStart = MPI_Wtime();
-
-	// for (int i = rank; i < 4; i+=size) {
-	// 	for (int j = 0; j < 4; j+=1) {
-	// 		cout << to_string(rank) << " says (" << to_string(i) << ", " << to_string(j) << ")" << endl;
-	// 	}
-	// }
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -50,7 +48,13 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	uint *r = new uint[ MAX_ROTORS ];
 
-	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size )  // This spreads the compute load to all processes EVENLY.
+	int counter = 0;
+
+	// The first line spreads the compute load to all processes EVENLY.
+	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size ) {
+		// Try to sync
+		MPI_Barrier(MPI_COMM_WORLD);
+		cout << "[" << to_string(rank) << "] Iteration: " << to_string(counter) << endl;
 		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
 			for ( r[2] = 0; r[2] <= rMax[2]; r[2]++ )
 				for ( r[3] = 0; r[3] <= rMax[3]; r[3]++ )
@@ -60,10 +64,19 @@ void MPIEnigmaBreaker::crackMessage() {
 								for ( r[7] = 0; r[7] <= rMax[7]; r[7]++ )
 									for ( r[8] = 0; r[8] <= rMax[8]; r[8]++ )
 										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ ) {
-											if ( solutionFound( r ) )
+											counter++;
+											if ( solutionFound( r ) ) {
+												cout << "[" << to_string(rank) << "] Getting OUT..." << endl;
 												goto EXIT_ALL_LOOPS;
+											}
 										}
+	}
 	EXIT_ALL_LOOPS:
+	cout << "[" << to_string(rank) << "] WAITING..." << endl;
+	cout << "[" << to_string(rank) << "] iterations DONE: " << to_string(counter) << endl;
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	// showUint(this->messageToDecode, this->messageLength);
 
 	if (rank == 0) {
         double timeEnd = MPI_Wtime();
@@ -81,9 +94,15 @@ bool MPIEnigmaBreaker::solutionFound( uint *rotorSettingsProposal ) {
 	enigma->setRotorPositions(rotorPositions);
 	uint *decodedMessage = new uint[ messageLength ];
 
-	for (uint messagePosition = 0; messagePosition < messageLength; messagePosition++ ) {
-		decodedMessage[ messagePosition ] = enigma->code(messageToDecode[ messagePosition ] );
+	int rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    // TODO - TRZEBA PRZECHWYCIC W PROCESIE 0 WIADOMOSC KONCOWA I ZAKODOWANA VIRTUALAMI I DAC RESZCIE
+	if (rank > 0) {
+		cout << "[" << rank << "] I AM HERE!!!" << endl;
 	}
+
+	for (uint messagePosition = 0; messagePosition < messageLength; messagePosition++ )
+		decodedMessage[ messagePosition ] = enigma->code(messageToDecode[ messagePosition ] );
 
 	bool result = comparator->messageDecoded(decodedMessage);
 

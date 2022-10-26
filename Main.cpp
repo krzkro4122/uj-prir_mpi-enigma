@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
 
 	cout << "Crack message - START" << endl;
 	breaker->crackMessage();
-	cout << "Crack message - DONE" << endl;
+	cout << "Crack message - DONE - Process: " << to_string(rank) << endl;
 
 	if ( rank == MPI_ROOT_PROCESS_RANK ) {
 		uint *result = new uint[ ROTORS ];
