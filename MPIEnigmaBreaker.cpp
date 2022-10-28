@@ -24,21 +24,73 @@ void MPIEnigmaBreaker::crackMessage() {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	if (rank == 0) {
-		cout << "[START] Processes count: " << to_string(size) << endl;
-		cout << "[START] Process " << to_string(rank) << endl;
-		cout << "[" << rank << "] this->messageToDecode: " << this->messageToDecode << endl;
+	if (size > 1) {
+		MPI_Barrier(MPI_COMM_WORLD);
+		// CODED MESSAGE
+		MPI_Bcast(&messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+		cout << "[" << rank << "] Message' length: " << messageLength << endl;
+
+		MPI_Barrier(MPI_COMM_WORLD);
+
+		MPI_Bcast(&messageToDecode, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+		cout << "[" << rank << "] Message: " << messageToDecode << endl;
+
+		MPI_Barrier(MPI_COMM_WORLD);
+
+		// DECODED MESSAGE - probably have to MPI_Send from the virtual method here
+		// MPI_Bcast(&expected, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 	}
 
-	uint * buffer = this->messageToDecode;
-	MPI_Barrier(MPI_COMM_WORLD);
-	MPI_Bcast(&buffer, this->messageLength, MPI_UNSIGNED, rank, MPI_COMM_WORLD);
-	MPI_Barrier(MPI_COMM_WORLD);
+	// if ( (rank != 0) && (size > 1) ) {
+	// 	cout << "[START] WAITING for root..." << endl;
+	// 	uint messageLength;
+	// 	uint * messageToDecode;
 
+	// 	// CODED MESSAGE
+	// 	// Message length transfer
+	// 	for (int i = 1; i < size; i++) {
+	// 		MPI_Barrier(MPI_COMM_WORLD);
+	// 		if (rank == i) {
+	// 			cout << "[CODED][" << rank << "] Receiving..." << endl;
+	// 			MPI_Recv(&messageLength, sizeof(messageLength), MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	// 			cout << "[CODED][" << rank << "] Received: " << messageLength << endl;
+	// 		}
+	// 	}
 
-	if (rank == 1) {
-		cout << "[" << rank << "] Gotten: \n\tmessageToDecode: " << buffer << endl;
-	}
+	// 	// Message payload transfer
+	// 	for (int i = 1; i < size; i++) {
+	// 		MPI_Barrier(MPI_COMM_WORLD);
+	// 		if (rank == i) {
+	// 			cout << "[CODED][" << rank << "] Receiving..." << endl;
+	// 			MPI_Recv(&messageToDecode, messageLength, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	// 			cout << "[CODED][" << rank << "] Received: " << messageToDecode << endl;
+	// 		}
+	// 	}
+
+	// 	uint expectedLength;
+	// 	uint * expected;
+
+	// 	// DECODED MESSAGE
+	// 	// Message length transfer
+	// 	for (int i = 1; i < size; i++) {
+	// 		MPI_Barrier(MPI_COMM_WORLD);
+	// 		if (rank == i) {
+	// 			cout << "[DE-CODED][" << rank << "] Receiving..." << endl;
+	// 			MPI_Recv(&expectedLength, sizeof(expectedLength), MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	// 			cout << "[DE-CODED][" << rank << "] Received: " << expectedLength << endl;
+	// 		}
+	// 	}
+
+	// 	// Message payload transfer
+	// 	for (int i = 1; i < size; i++) {
+	// 		MPI_Barrier(MPI_COMM_WORLD);
+	// 		if (rank == i) {
+	// 			cout << "[DE-CODED][" << rank << "] Receiving..." << endl;
+	// 			MPI_Recv(&expected, expectedLength, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	// 			cout << "[DE-CODED][" << rank << "] Received: " << expected << endl;
+	// 		}
+	// 	}
+	// }
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -61,9 +113,6 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	// The first line spreads the compute load to all processes EVENLY.
 	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size ) {
-		// Try to sync
-		MPI_Barrier(MPI_COMM_WORLD);
-		cout << "[" << to_string(rank) << "] Iteration: " << to_string(counter) << endl;
 		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
 			for ( r[2] = 0; r[2] <= rMax[2]; r[2]++ )
 				for ( r[3] = 0; r[3] <= rMax[3]; r[3]++ )
@@ -81,11 +130,9 @@ void MPIEnigmaBreaker::crackMessage() {
 										}
 	}
 	EXIT_ALL_LOOPS:
-	cout << "[" << to_string(rank) << "] WAITING..." << endl;
+	cout << "[" << to_string(rank) << "] FINISHED..." << endl;
 	cout << "[" << to_string(rank) << "] iterations DONE: " << to_string(counter) << endl;
 	MPI_Barrier(MPI_COMM_WORLD);
-
-	// showUint(this->messageToDecode, this->messageLength);
 
 	if (rank == 0) {
         double timeEnd = MPI_Wtime();
@@ -105,7 +152,6 @@ bool MPIEnigmaBreaker::solutionFound( uint *rotorSettingsProposal ) {
 
 	int rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    // TODO - TRZEBA PRZECHWYCIC W PROCESIE 0 WIADOMOSC KONCOWA I ZAKODOWANA VIRTUALAMI I DAC RESZCIE
 	if (rank > 0) {
 		cout << "[" << rank << "] I AM HERE!!!" << endl;
 	}
@@ -126,32 +172,59 @@ void MPIEnigmaBreaker::getResult( uint *rotorPositions ) {
 	}
 }
 
-void MPIEnigmaBreaker::setMessageToDecode( uint *message, uint messageLength ) {
+// void MPIEnigmaBreaker::setMessageToDecode( uint * message, uint messageLength ) {
 
-	comparator->setMessageLength(messageLength);
-	this->messageLength = messageLength;
-	this->messageToDecode = message;
-	messageProposal = new uint[ messageLength ];
+// 	comparator->setMessageLength(messageLength);
+// 	this->messageLength = messageLength;
+// 	this->messageToDecode = message;
+// 	messageProposal = new uint[ messageLength ];
 
-	// // Detect if multithreading
-	// int rank;
-	// int size;
-	// MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	// MPI_Comm_size(MPI_COMM_WORLD, &size);
-	// cout << "[" << rank << "] Size: " << size << endl;
+// // 	// Get basic MPI info
+// // 	int rank;
+// // 	int size;
+// // 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+// // 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	// if (size > 1) {
-	// 	// Processes other than root do not really know about any of our message's data - Bcast it to them
-	// 	uint * buffer = this->messageToDecode;
+// // 	// Detect if multithreading
+// // 	if (size > 1) {
+// // 		// Message length transfer
+// // 		for (int i = 1; i < size; i++) {
+// // 			cout << "[CODED][" << rank << "] Sending to [" << i << "]..." << endl;
+// // 			MPI_Barrier(MPI_COMM_WORLD);
+// // 			MPI_Bsend(&messageLength, sizeof(messageLength), MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+// // 		}
+// // 		// Message payload transfer
+// // 		for (int i = 1; i < size; i++) {
+// // 			cout << "[CODED][" << rank << "] Sending to [" << i << "]..." << endl;
+// // 			MPI_Barrier(MPI_COMM_WORLD);
+// // 			MPI_Send(&message, messageLength, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+// // 		}
+// // 	}
+// }
 
-	// 	if (rank == 0) {
-	// 		cout << "[" << rank << "] Broadcasting: \n\tmessageLength: " << this->messageLength << "\n\tmessageToDecode: " << buffer << endl;
-	// 	}
+// // This method is accessed by ROOT PROCESS ONLY!!!
+// void MPIEnigmaBreaker::setSampleToFind(uint * expected, uint expectedLength ) {
+// 	comparator->setExpectedFragment(expected, expectedLength);
 
-	// 	MPI_Bcast(&buffer, this->messageLength, MPI_UNSIGNED, rank, MPI_COMM_WORLD);
-	// }
-}
+// 	// Get basic MPI info
+// 	int rank;
+// 	int size;
+// 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+// 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-void MPIEnigmaBreaker::setSampleToFind(uint *expected, uint expectedLength ) {
-	comparator->setExpectedFragment(expected, expectedLength);
-}
+// 	// Detect if multithreading
+// 	if (size > 1) {
+// 		// Message length transfer
+// 		for (int i = 1; i < size; i++) {
+// 			cout << "[DE-CODED][" << rank << "] Sending to [" << i << "]..." << endl;
+// 			MPI_Barrier(MPI_COMM_WORLD);
+// 			MPI_Bsend(&expectedLength, sizeof(expectedLength), MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+// 		}
+// 		// Message payload transfer
+// 		for (int i = 1; i < size; i++) {
+// 			cout << "[DE-CODED][" << rank << "] Sending to [" << i << "]..." << endl;
+// 			MPI_Barrier(MPI_COMM_WORLD);
+// 			MPI_Send(&expected, expectedLength, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+// 		}
+// 	}
+// }

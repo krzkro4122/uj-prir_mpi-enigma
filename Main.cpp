@@ -13,7 +13,6 @@
 #include"MessageComparator.h"
 #include"SimpleMessageComparator.h"
 #include"EnigmaBreaker.h"
-#include"SerialEnigmaBreaker.h"
 #include"MPIEnigmaBreaker.h"
 
 const uint ROTORS = 6;
@@ -45,7 +44,6 @@ int main(int argc, char **argv) {
 	Enigma *enigma = new Enigma( enigmaMachinery );
 
 	MessageComparator *comparator = new SimpleMessageComparator();
-	// EnigmaBreaker *breaker = new SerialEnigmaBreaker(enigma, comparator);
 	EnigmaBreaker *breaker = new MPIEnigmaBreaker(enigma, comparator);
 
 	if ( rank == MPI_ROOT_PROCESS_RANK ) {
@@ -61,7 +59,7 @@ int main(int argc, char **argv) {
 
 	cout << "Crack message - START" << endl;
 	breaker->crackMessage();
-	cout << "Crack message - DONE - Process: " << to_string(rank) << endl;
+	cout << "Crack message - DONE" << endl;
 
 	if ( rank == MPI_ROOT_PROCESS_RANK ) {
 		uint *result = new uint[ ROTORS ];

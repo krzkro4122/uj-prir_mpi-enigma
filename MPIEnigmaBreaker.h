@@ -18,9 +18,9 @@ public:
 
 	void crackMessage();
 	void getResult( uint *rotorPositions );
-	
+
 	virtual void setSampleToFind( uint *expected, uint expectedLength );
-	virtual void setMessageToDecode( uint *message, uint messageLength );
+	// virtual void setMessageToDecode( uint *message, uint messageLength );  // Not used
 
 	virtual ~MPIEnigmaBreaker();
 };
