@@ -7,7 +7,7 @@
 
 #include "MPIEnigmaBreaker.h"
 #include "mpi.h"
-#include "Consts.h"
+
 
 MPIEnigmaBreaker::MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator ) : EnigmaBreaker(enigma, comparator ) {
 }
@@ -24,73 +24,20 @@ void MPIEnigmaBreaker::crackMessage() {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+	// BTW - Somehow, consecutive MPI_Bcasts do not work when not in an `if` clause :D
 	if (size > 1) {
-		MPI_Barrier(MPI_COMM_WORLD);
 		// CODED MESSAGE
-		MPI_Bcast(&messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-		cout << "[" << rank << "] Message' length: " << messageLength << endl;
-
-		MPI_Barrier(MPI_COMM_WORLD);
-
-		MPI_Bcast(&messageToDecode, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
-		cout << "[" << rank << "] Message: " << messageToDecode << endl;
-
-		MPI_Barrier(MPI_COMM_WORLD);
+		if (MPI_Bcast(&messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+			cout << "[" << rank << "] Coded message' length: " << messageLength << endl;
+		if (MPI_Bcast(&messageToDecode, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+			cout << "[" << rank << "] Coded message' address: " << messageToDecode << endl;
 
 		// DECODED MESSAGE - probably have to MPI_Send from the virtual method here
-		// MPI_Bcast(&expected, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+		if (MPI_Bcast(&expectedLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+			cout << "[" << rank << "] Expected message' length: " << expectedLength << endl;
+		if (MPI_Bcast(&expected, expectedLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+			cout << "[" << rank << "] Expected message' address: " << expected << endl;
 	}
-
-	// if ( (rank != 0) && (size > 1) ) {
-	// 	cout << "[START] WAITING for root..." << endl;
-	// 	uint messageLength;
-	// 	uint * messageToDecode;
-
-	// 	// CODED MESSAGE
-	// 	// Message length transfer
-	// 	for (int i = 1; i < size; i++) {
-	// 		MPI_Barrier(MPI_COMM_WORLD);
-	// 		if (rank == i) {
-	// 			cout << "[CODED][" << rank << "] Receiving..." << endl;
-	// 			MPI_Recv(&messageLength, sizeof(messageLength), MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	// 			cout << "[CODED][" << rank << "] Received: " << messageLength << endl;
-	// 		}
-	// 	}
-
-	// 	// Message payload transfer
-	// 	for (int i = 1; i < size; i++) {
-	// 		MPI_Barrier(MPI_COMM_WORLD);
-	// 		if (rank == i) {
-	// 			cout << "[CODED][" << rank << "] Receiving..." << endl;
-	// 			MPI_Recv(&messageToDecode, messageLength, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	// 			cout << "[CODED][" << rank << "] Received: " << messageToDecode << endl;
-	// 		}
-	// 	}
-
-	// 	uint expectedLength;
-	// 	uint * expected;
-
-	// 	// DECODED MESSAGE
-	// 	// Message length transfer
-	// 	for (int i = 1; i < size; i++) {
-	// 		MPI_Barrier(MPI_COMM_WORLD);
-	// 		if (rank == i) {
-	// 			cout << "[DE-CODED][" << rank << "] Receiving..." << endl;
-	// 			MPI_Recv(&expectedLength, sizeof(expectedLength), MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	// 			cout << "[DE-CODED][" << rank << "] Received: " << expectedLength << endl;
-	// 		}
-	// 	}
-
-	// 	// Message payload transfer
-	// 	for (int i = 1; i < size; i++) {
-	// 		MPI_Barrier(MPI_COMM_WORLD);
-	// 		if (rank == i) {
-	// 			cout << "[DE-CODED][" << rank << "] Receiving..." << endl;
-	// 			MPI_Recv(&expected, expectedLength, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	// 			cout << "[DE-CODED][" << rank << "] Received: " << expected << endl;
-	// 		}
-	// 	}
-	// }
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -172,59 +119,17 @@ void MPIEnigmaBreaker::getResult( uint *rotorPositions ) {
 	}
 }
 
-// void MPIEnigmaBreaker::setMessageToDecode( uint * message, uint messageLength ) {
+void MPIEnigmaBreaker::setMessageToDecode( uint *message, uint messageLength ) {
+	comparator->setMessageLength(messageLength);
+	this->messageLength = messageLength;
+	this->messageToDecode = message;
+	messageProposal = new uint[ messageLength ];
+}
 
-// 	comparator->setMessageLength(messageLength);
-// 	this->messageLength = messageLength;
-// 	this->messageToDecode = message;
-// 	messageProposal = new uint[ messageLength ];
-
-// // 	// Get basic MPI info
-// // 	int rank;
-// // 	int size;
-// // 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-// // 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-// // 	// Detect if multithreading
-// // 	if (size > 1) {
-// // 		// Message length transfer
-// // 		for (int i = 1; i < size; i++) {
-// // 			cout << "[CODED][" << rank << "] Sending to [" << i << "]..." << endl;
-// // 			MPI_Barrier(MPI_COMM_WORLD);
-// // 			MPI_Bsend(&messageLength, sizeof(messageLength), MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
-// // 		}
-// // 		// Message payload transfer
-// // 		for (int i = 1; i < size; i++) {
-// // 			cout << "[CODED][" << rank << "] Sending to [" << i << "]..." << endl;
-// // 			MPI_Barrier(MPI_COMM_WORLD);
-// // 			MPI_Send(&message, messageLength, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
-// // 		}
-// // 	}
-// }
-
-// // This method is accessed by ROOT PROCESS ONLY!!!
-// void MPIEnigmaBreaker::setSampleToFind(uint * expected, uint expectedLength ) {
-// 	comparator->setExpectedFragment(expected, expectedLength);
-
-// 	// Get basic MPI info
-// 	int rank;
-// 	int size;
-// 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-// 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-// 	// Detect if multithreading
-// 	if (size > 1) {
-// 		// Message length transfer
-// 		for (int i = 1; i < size; i++) {
-// 			cout << "[DE-CODED][" << rank << "] Sending to [" << i << "]..." << endl;
-// 			MPI_Barrier(MPI_COMM_WORLD);
-// 			MPI_Bsend(&expectedLength, sizeof(expectedLength), MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
-// 		}
-// 		// Message payload transfer
-// 		for (int i = 1; i < size; i++) {
-// 			cout << "[DE-CODED][" << rank << "] Sending to [" << i << "]..." << endl;
-// 			MPI_Barrier(MPI_COMM_WORLD);
-// 			MPI_Send(&expected, expectedLength, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
-// 		}
-// 	}
-// }
+// This method is accessed by ROOT PROCESS ONLY
+void MPIEnigmaBreaker::setSampleToFind( uint *expected, uint expectedLength ) {
+	comparator->setExpectedFragment(expected, expectedLength);
+	// Intercept the expected message
+	this->expected = expected;
+	this->expectedLength = expectedLength;
+}
