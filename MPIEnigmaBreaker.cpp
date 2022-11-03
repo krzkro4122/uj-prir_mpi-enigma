@@ -24,19 +24,28 @@ void MPIEnigmaBreaker::crackMessage() {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	// BTW - Somehow, consecutive MPI_Bcasts do not work when not in an `if` clause :D
+	// Communication
 	if (size > 1) {
-		// CODED MESSAGE
-		if (MPI_Bcast(&messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+		// Message lengths
+		if (MPI_Bcast(&this->messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
 			cout << "[" << rank << "] Coded message' length: " << messageLength << endl;
-		if (MPI_Bcast(&messageToDecode, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
-			cout << "[" << rank << "] Coded message' address: " << messageToDecode << endl;
-
-		// DECODED MESSAGE - probably have to MPI_Send from the virtual method here
-		if (MPI_Bcast(&expectedLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+		if (MPI_Bcast(&this->expectedLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
 			cout << "[" << rank << "] Expected message' length: " << expectedLength << endl;
-		if (MPI_Bcast(&expected, expectedLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+		if (rank != 0) {
+			// Have to allocate new memory for processes other than root
+			this->messageToDecode = new uint[messageLength];
+			this->expected = new uint[expectedLength];
+		}
+		// Messages
+		if (MPI_Bcast(this->messageToDecode, this->messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
+			cout << "[" << rank << "] Coded message' address: " << messageToDecode << endl;
+		if (MPI_Bcast(this->expected, this->expectedLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
 			cout << "[" << rank << "] Expected message' address: " << expected << endl;
+		// And now supply the non-root comparator with the expected message
+		if (rank != 0) {
+			comparator->setMessageLength(messageLength);
+			comparator->setExpectedFragment(this->expected, this->expectedLength);
+		}
 	}
 
 	/**
@@ -54,12 +63,21 @@ void MPIEnigmaBreaker::crackMessage() {
 			rMax[ rotor ] = 0;
 	}
 
+	if (rank != 0) {
+		cout << "[" << rank << "] expected: [";
+		for (uint position = 0; position < this->expectedLength; position++) {
+		cout << this->expected[position] << ", ";
+		}
+		cout << "]" << endl;
+	}
+
 	uint *r = new uint[ MAX_ROTORS ];
 
 	int counter = 0;
+	int found = 0;
 
 	// The first line spreads the compute load to all processes EVENLY.
-	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size ) {
+	for ( r[0] = rank; r[0] <= rMax[0] - size; r[0] += size )
 		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
 			for ( r[2] = 0; r[2] <= rMax[2]; r[2]++ )
 				for ( r[3] = 0; r[3] <= rMax[3]; r[3]++ )
@@ -68,18 +86,20 @@ void MPIEnigmaBreaker::crackMessage() {
 							for ( r[6] = 0; r[6] <= rMax[6]; r[6]++ )
 								for ( r[7] = 0; r[7] <= rMax[7]; r[7]++ )
 									for ( r[8] = 0; r[8] <= rMax[8]; r[8]++ )
-										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ ) {
-											counter++;
+										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ )
 											if ( solutionFound( r ) ) {
-												cout << "[" << to_string(rank) << "] Getting OUT..." << endl;
+												cout << "[" << rank << "] Getting OUT..." << endl;
+												found = rank;
 												goto EXIT_ALL_LOOPS;
 											}
-										}
-	}
 	EXIT_ALL_LOOPS:
 	cout << "[" << to_string(rank) << "] FINISHED..." << endl;
 	cout << "[" << to_string(rank) << "] iterations DONE: " << to_string(counter) << endl;
-	MPI_Barrier(MPI_COMM_WORLD);
+
+	cout << "[" << rank << "] Awaiting on brethren..." << endl;
+	cout << "[" << rank << "] ------" << endl;
+	showUint(r, rotors);
+	MPI_Bcast(&r, MAX_ROTORS, MPI_UNSIGNED, found, MPI_COMM_WORLD);
 
 	if (rank == 0) {
         double timeEnd = MPI_Wtime();
@@ -91,17 +111,18 @@ void MPIEnigmaBreaker::crackMessage() {
 }
 
 bool MPIEnigmaBreaker::solutionFound( uint *rotorSettingsProposal ) {
-	for ( uint rotor = 0; rotor < rotors; rotor++ )
-		rotorPositions[ rotor ] = rotorSettingsProposal[ rotor ];
+	int rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	for ( uint rotor = 0; rotor < MAX_ROTORS; rotor++ ) {
+		if ( rotor < rotors )
+			rotorPositions[ rotor ] = rotorSettingsProposal[ rotor ];
+		else
+			rotorPositions[ rotor ] = 0;
+	}
 
 	enigma->setRotorPositions(rotorPositions);
 	uint *decodedMessage = new uint[ messageLength ];
-
-	int rank;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	if (rank > 0) {
-		cout << "[" << rank << "] I AM HERE!!!" << endl;
-	}
 
 	for (uint messagePosition = 0; messagePosition < messageLength; messagePosition++ )
 		decodedMessage[ messagePosition ] = enigma->code(messageToDecode[ messagePosition ] );

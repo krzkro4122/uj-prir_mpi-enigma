@@ -14,10 +14,10 @@ class MPIEnigmaBreaker : public EnigmaBreaker {
 private:
 	bool solutionFound( uint *rotorSettingsProposal );
 protected:
-	uint *expected;
-	uint expectedLength;
-	uint *messageToDecode;
-	uint messageLength;
+	uint *expected = 0;
+	uint expectedLength = 0;
+	uint *messageToDecode = 0;
+	uint messageLength = 0;
 public:
 	MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator );
 
