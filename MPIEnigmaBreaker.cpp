@@ -8,7 +8,6 @@
 #include "MPIEnigmaBreaker.h"
 #include "mpi.h"
 
-
 MPIEnigmaBreaker::MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator ) : EnigmaBreaker(enigma, comparator ) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -39,7 +38,10 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	uint rotorLargestSetting = enigma->getLargestRotorSetting();
 
-	
+	// Now scatter it or sth
+	uint maxRange = MAX_ROTORS * 2;
+	// maxRange ustawien - suma czasow wszystkich procesow
+	// x ustawien - czas poszczegolnego procesu
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
