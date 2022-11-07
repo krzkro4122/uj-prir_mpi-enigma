@@ -13,20 +13,17 @@
 class MPIEnigmaBreaker : public EnigmaBreaker {
 private:
 	bool solutionFound( uint *rotorSettingsProposal );
-protected:
-	uint *expected = 0;
-	uint expectedLength = 0;
-	uint *messageToDecode = 0;
-	uint messageLength = 0;
+	int rank;
+	int size;
+	uint *expected;
+	uint expectedLength;
 public:
 	MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator );
 
 	void crackMessage();
 	void getResult( uint *rotorPositions );
 
-	virtual void setSampleToFind( uint *expected, uint expectedLength );
-	virtual void setMessageToDecode( uint *message, uint messageLength );
-
+	void setSampleToFind( uint *expected, uint expectedLength ) override;
 	virtual ~MPIEnigmaBreaker();
 };
 

@@ -10,6 +10,8 @@
 
 
 MPIEnigmaBreaker::MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator ) : EnigmaBreaker(enigma, comparator ) {
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
 }
 
 MPIEnigmaBreaker::~MPIEnigmaBreaker() {
@@ -17,36 +19,27 @@ MPIEnigmaBreaker::~MPIEnigmaBreaker() {
 }
 
 void MPIEnigmaBreaker::crackMessage() {
-	uint rotorLargestSetting = enigma->getLargestRotorSetting();
-	double timeStart = MPI_Wtime();
-	int rank;
-	int size;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	// Communication
-	if (size > 1) {
+	// --- Communication ---
+	if (size > 1){
 		// Message lengths
-		if (MPI_Bcast(&this->messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
-			cout << "[" << rank << "] Coded message' length: " << messageLength << endl;
-		if (MPI_Bcast(&this->expectedLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
-			cout << "[" << rank << "] Expected message' length: " << expectedLength << endl;
+		MPI_Bcast(&messageLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+		MPI_Bcast(&expectedLength, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 		if (rank != 0) {
-			// Have to allocate new memory for processes other than root
-			this->messageToDecode = new uint[messageLength];
-			this->expected = new uint[expectedLength];
+			expected = new uint[expectedLength];
+			messageToDecode = new uint[messageLength];
 		}
 		// Messages
-		if (MPI_Bcast(this->messageToDecode, this->messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
-			cout << "[" << rank << "] Coded message' address: " << messageToDecode << endl;
-		if (MPI_Bcast(this->expected, this->expectedLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD) == 0)
-			cout << "[" << rank << "] Expected message' address: " << expected << endl;
-		// And now supply the non-root comparator with the expected message
-		if (rank != 0) {
-			comparator->setMessageLength(messageLength);
-			comparator->setExpectedFragment(this->expected, this->expectedLength);
-		}
+		MPI_Bcast(messageToDecode, messageLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+		MPI_Bcast(expected, expectedLength, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+		// Configure the comparator
+		comparator->setMessageLength(messageLength);
+		comparator->setExpectedFragment(expected, expectedLength);
 	}
+
+	uint rotorLargestSetting = enigma->getLargestRotorSetting();
+
+	
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -63,18 +56,16 @@ void MPIEnigmaBreaker::crackMessage() {
 			rMax[ rotor ] = 0;
 	}
 
-	if (rank != 0) {
-		cout << "[" << rank << "] expected: [";
-		for (uint position = 0; position < this->expectedLength; position++) {
-		cout << this->expected[position] << ", ";
-		}
-		cout << "]" << endl;
-	}
-
 	uint *r = new uint[ MAX_ROTORS ];
 
-	int counter = 0;
-	int found = 0;
+	// Init the needed variables for communication
+	int finder = -1;
+	int ready = 0;
+	MPI_Request request;
+	MPI_Status status;
+
+	// Receive&go
+	MPI_Irecv(&finder, 1, MPI_UNSIGNED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &request);
 
 	// The first line spreads the compute load to all processes EVENLY.
 	for ( r[0] = rank; r[0] <= rMax[0] - size; r[0] += size )
@@ -86,40 +77,40 @@ void MPIEnigmaBreaker::crackMessage() {
 							for ( r[6] = 0; r[6] <= rMax[6]; r[6]++ )
 								for ( r[7] = 0; r[7] <= rMax[7]; r[7]++ )
 									for ( r[8] = 0; r[8] <= rMax[8]; r[8]++ )
-										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ )
-											if ( solutionFound( r ) ) {
-												cout << "[" << rank << "] Getting OUT..." << endl;
-												found = rank;
+										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ ) {
+											// See if anybody found the answer already
+											MPI_Test(&request, &ready, &status);
+											if ( ready ) {
 												goto EXIT_ALL_LOOPS;
 											}
+											// When the answer is found - send it to all other processes
+											if ( solutionFound( r ) ) {
+												finder = rank;
+												for (int i = 0; i < size; i++) {
+													if (i != finder)
+														MPI_Isend(&finder, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD, &request);
+												}
+												goto EXIT_ALL_LOOPS;
+											}
+										}
 	EXIT_ALL_LOOPS:
-	cout << "[" << to_string(rank) << "] FINISHED..." << endl;
-	cout << "[" << to_string(rank) << "] iterations DONE: " << to_string(counter) << endl;
 
-	cout << "[" << rank << "] Awaiting on brethren..." << endl;
-	cout << "[" << rank << "] ------" << endl;
-	showUint(r, rotors);
-	MPI_Bcast(&r, MAX_ROTORS, MPI_UNSIGNED, found, MPI_COMM_WORLD);
-
-	if (rank == 0) {
-        double timeEnd = MPI_Wtime();
-		cout << "Czas obliczeń: " << to_string(timeEnd - timeStart) << " s" << endl;
+	// If finder was non-root, send the correct answer to root and use it
+	if (finder != 0 && rank == 0) {
+		ready = 0;
+		MPI_Recv(r, MAX_ROTORS, MPI_UNSIGNED, finder, 0, MPI_COMM_WORLD, &status);
+		solutionFound( r );  // use
 	}
+	if (finder == rank && finder != 0)
+		MPI_Isend(r, MAX_ROTORS, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, &request);
 
 	delete[] rMax;
 	delete[] r;
 }
 
 bool MPIEnigmaBreaker::solutionFound( uint *rotorSettingsProposal ) {
-	int rank;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	for ( uint rotor = 0; rotor < MAX_ROTORS; rotor++ ) {
-		if ( rotor < rotors )
-			rotorPositions[ rotor ] = rotorSettingsProposal[ rotor ];
-		else
-			rotorPositions[ rotor ] = 0;
-	}
+	for ( uint rotor = 0; rotor < rotors; rotor++ )
+		rotorPositions[ rotor ] = rotorSettingsProposal[ rotor ];
 
 	enigma->setRotorPositions(rotorPositions);
 	uint *decodedMessage = new uint[ messageLength ];
@@ -135,22 +126,12 @@ bool MPIEnigmaBreaker::solutionFound( uint *rotorSettingsProposal ) {
 }
 
 void MPIEnigmaBreaker::getResult( uint *rotorPositions ) {
-	for ( uint rotor = 0; rotor < rotors; rotor++ ) {
+	for ( uint rotor = 0; rotor < rotors; rotor++ )
 		rotorPositions[ rotor ] = this->rotorPositions[ rotor ];
-	}
 }
 
-void MPIEnigmaBreaker::setMessageToDecode( uint *message, uint messageLength ) {
-	comparator->setMessageLength(messageLength);
-	this->messageLength = messageLength;
-	this->messageToDecode = message;
-	messageProposal = new uint[ messageLength ];
-}
-
-// This method is accessed by ROOT PROCESS ONLY
 void MPIEnigmaBreaker::setSampleToFind( uint *expected, uint expectedLength ) {
-	comparator->setExpectedFragment(expected, expectedLength);
-	// Intercept the expected message
+	EnigmaBreaker::setSampleToFind(expected, expectedLength);
 	this->expected = expected;
 	this->expectedLength = expectedLength;
 }
