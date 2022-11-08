@@ -39,65 +39,66 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	uint rotorLargestSetting = enigma->getLargestRotorSetting();
 
+	int startingPoint = 0;
+	int count = 0;
+
 	// Try to spread the load accordingly - NOT USED YET
-	// if (size > 1) {
-	// 	// Wait for everyone before measuring
-	// 	MPI_Barrier(MPI_COMM_WORLD);
+	if (size > 1) {
+		// Wait for everyone before measuring
+		MPI_Barrier(MPI_COMM_WORLD);
 
-	// 	// Arbitrary calculations to measure performance
-	// 	double start = MPI_Wtime();
-	// 	for (int i = 0; i < 1000000; i++) {
-	// 		i = i * i;
-	// 	}
-	// 	double end = MPI_Wtime() - start;
-	// 	double times[size];
-	// 	double timesSum;
+		// Arbitrary calculations to measure performance
+		double start = MPI_Wtime();
 
-	// 	MPI_Gather(&end, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+		uint fakeRotorPostitions[MAX_ROTORS];
+		for (int i = 0; i < MAX_ROTORS; i++)
+			fakeRotorPostitions[i] = 0;
 
-	// 	if (rank == 0)
-	// 		for (int i = 0; i < size; i++)
-	// 			timesSum += times[i];
+		for (fakeRotorPostitions[0] = 0; fakeRotorPostitions[0] < MAX_ROTORS; fakeRotorPostitions[0]++)
+			for (fakeRotorPostitions[1] = 0; fakeRotorPostitions[1] < MAX_ROTORS; fakeRotorPostitions[1]++)
+				for (fakeRotorPostitions[2] = 0; fakeRotorPostitions[2] < MAX_ROTORS; fakeRotorPostitions[2]++)
+					for (fakeRotorPostitions[3] = 0; fakeRotorPostitions[3] < MAX_ROTORS; fakeRotorPostitions[3]++)
+						for (fakeRotorPostitions[4] = 0; fakeRotorPostitions[4] < MAX_ROTORS; fakeRotorPostitions[4]++)
+						solutionFound( fakeRotorPostitions );
 
-	// 	int counts[size];
-	// 	if (rank == 0) {
-	// 		for (int i = 0; i < size; i++)
-	// 			counts[i] = 0;
-	// 		for (int i = 0; i < MAX_ROTORS + 1; i++) // to change
-	// 			counts[i % size] += 1;
-	// 	}
+		double end = MPI_Wtime() - start;
+		double times[size];
+		double timesSum;
 
-	// 	int startingPoints[size];
-	// 	int countAggregate = 0;
-	// 	if (rank == 0) {
-	// 		for (int i = 0; i < size; i++) {
-	// 			// Start where the previous process stops
-	// 			startingPoints[i] = countAggregate;
-	// 			countAggregate += counts[i];
-	// 		}
-	// 	// Display stuff
-	// 	cout << "Start: {";
-	// 	for (int i = 0; i < size; i++)
-	// 		cout << startingPoints[i] << ", ";
-	// 	cout << "}" << endl;
-	// 	cout << "Ilosc: {";
-	// 	for (int i = 0; i < size; i++)
-	// 		cout << counts[i] << ", ";
-	// 	cout << "}" << endl;
-	// 	cout << "[" << rank << "] Summed counts: " << countAggregate << endl;
-	// 	}
+		MPI_Gather(&end, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+		if (rank == 0)
+			for (int i = 0; i < size; i++)
+				timesSum += times[i];
 
-	// 	// Send out the starting points and counts
-	// 	int count = 0;
-	// 	int startingPoint = 0;
+		int limit = MAX_ROTORS + 2;
+		int counts[size];
+		if (rank == 0) {
+			for (int i = 0; i < size; i++)
+				counts[i] = 0;
 
-	// 	MPI_Scatter(counts, 1, MPI_INT, &count, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	// 	MPI_Scatter(startingPoints, 1, MPI_INT, &startingPoint, 1, MPI_INT, 0, MPI_COMM_WORLD);
+			for (int i = 0; i < size; i++)
+				counts[i] = limit * (times[i] / timesSum);
+		}
 
-	// 	cout << "[" << rank << "] count: " << count << endl;
-	// 	cout << "[" << rank << "] startingPoint: " << startingPoint << endl;
-	// }
+		int startingPoints[size];
+		int countAggregate = 0;
+		if (rank == 0) {
+			for (int i = 0; i < size; i++) {
+				// Start where the previous process stops
+				startingPoints[i] = countAggregate;
+				if (i == size - 1) {
+					while (startingPoints[i] + counts[i] < limit - 1) {
+						counts[i]++;
+					}
+				}
+				countAggregate += counts[i];
+			}
+		}
+		// Send out the starting points and counts
+		MPI_Scatter(counts, 1, MPI_INT, &count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Scatter(startingPoints, 1, MPI_INT, &startingPoint, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	}
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -125,10 +126,13 @@ void MPIEnigmaBreaker::crackMessage() {
 	// Receive&go
 	MPI_Irecv(&finder, 1, MPI_UNSIGNED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &request);
 
+	if (size == 1) {
+		count = rMax[0];
+	}
 
 	double roundTripTime = MPI_Wtime();
 	// The first line spreads the compute load to all processes EVENLY.
-	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size )
+	for ( r[0] = startingPoint; r[0] <= startingPoint + count; r[0]++ )
 		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
 			for ( r[2] = 0; r[2] <= rMax[2]; r[2]++ )
 				for ( r[3] = 0; r[3] <= rMax[3]; r[3]++ )
