@@ -41,56 +41,62 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	// Try to spread the load accordingly - NOT USED YET
 	// if (size > 1) {
+	// 	// Wait for everyone before measuring
 	// 	MPI_Barrier(MPI_COMM_WORLD);
+
 	// 	// Arbitrary calculations to measure performance
 	// 	double start = MPI_Wtime();
 	// 	for (int i = 0; i < 1000000; i++) {
 	// 		i = i * i;
 	// 	}
 	// 	double end = MPI_Wtime() - start;
-
 	// 	double times[size];
 	// 	double timesSum;
+
 	// 	MPI_Gather(&end, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-	// 	cout << "[" << rank << "] Moj czas: " << end << endl;
-	// 	if (rank == 0) {
-	// 		cout << "Czasy: {";
-	// 		for (int i = 0; i < size; i++) {
-	// 			timesSum += times[i];
-	// 			cout << times[i] << ", ";
-	// 		}
-	// 		cout << "}" << endl;
-	// 		cout << "[" << rank << "] Suma czasow: " << timesSum << endl;
-	// 	}
-
-	// 	int count[size];
-	// 	if (rank == 0) {
-	// 		for (int i = 0; i < MAX_ROTORS; i++)
-	// 			count[i % size] += 1;
-
-	// 		cout << "Ilosc: {";
+	// 	if (rank == 0)
 	// 		for (int i = 0; i < size; i++)
-	// 			cout << count[i] << ", ";
-	// 		cout << "}" << endl;
+	// 			timesSum += times[i];
+
+	// 	int counts[size];
+	// 	if (rank == 0) {
+	// 		for (int i = 0; i < size; i++)
+	// 			counts[i] = 0;
+	// 		for (int i = 0; i < MAX_ROTORS + 1; i++) // to change
+	// 			counts[i % size] += 1;
 	// 	}
 
-	// 	int startingPoint[size];
+	// 	int startingPoints[size];
 	// 	int countAggregate = 0;
 	// 	if (rank == 0) {
-	// 		cout << "Start: {";
 	// 		for (int i = 0; i < size; i++) {
 	// 			// Start where the previous process stops
-	// 			startingPoint[i] = countAggregate;
-	// 			if (count[i] + startingPoint[i] > MAX_ROTORS)
-	// 				count[i] = MAX_ROTORS - startingPoint[i];
-	// 			countAggregate += count[i];
-	// 			cout << startingPoint[i] << ", ";
+	// 			startingPoints[i] = countAggregate;
+	// 			countAggregate += counts[i];
 	// 		}
-	// 		cout << "}" << endl;
+	// 	// Display stuff
+	// 	cout << "Start: {";
+	// 	for (int i = 0; i < size; i++)
+	// 		cout << startingPoints[i] << ", ";
+	// 	cout << "}" << endl;
+	// 	cout << "Ilosc: {";
+	// 	for (int i = 0; i < size; i++)
+	// 		cout << counts[i] << ", ";
+	// 	cout << "}" << endl;
+	// 	cout << "[" << rank << "] Summed counts: " << countAggregate << endl;
 	// 	}
 
-	// 	cout << "[" << rank << "] Summed count: " << countAggregate << endl;
+
+	// 	// Send out the starting points and counts
+	// 	int count = 0;
+	// 	int startingPoint = 0;
+
+	// 	MPI_Scatter(counts, 1, MPI_INT, &count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	// 	MPI_Scatter(startingPoints, 1, MPI_INT, &startingPoint, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	// 	cout << "[" << rank << "] count: " << count << endl;
+	// 	cout << "[" << rank << "] startingPoint: " << startingPoint << endl;
 	// }
 
 	/**
@@ -119,6 +125,8 @@ void MPIEnigmaBreaker::crackMessage() {
 	// Receive&go
 	MPI_Irecv(&finder, 1, MPI_UNSIGNED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &request);
 
+
+	double roundTripTime = MPI_Wtime();
 	// The first line spreads the compute load to all processes EVENLY.
 	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size )
 		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
@@ -130,10 +138,13 @@ void MPIEnigmaBreaker::crackMessage() {
 								for ( r[7] = 0; r[7] <= rMax[7]; r[7]++ )
 									for ( r[8] = 0; r[8] <= rMax[8]; r[8]++ )
 										for ( r[9] = 0; r[9] <= rMax[9]; r[9]++ ) {
-											// See if anybody found the answer already
-											MPI_Test(&request, &ready, &status);
-											if ( ready ) {
-												goto EXIT_ALL_LOOPS;
+											// See if anybody found the answer already after some time
+											if (MPI_Wtime() - roundTripTime > MAX_DELAY * 0.7) {
+												MPI_Test(&request, &ready, &status);
+												if ( ready ) {
+													goto EXIT_ALL_LOOPS;
+												}
+												roundTripTime = MPI_Wtime();
 											}
 											// When the answer is found - send it to all other processes
 											if ( solutionFound( r ) ) {
