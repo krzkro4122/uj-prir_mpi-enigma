@@ -7,6 +7,7 @@
 
 #include "MPIEnigmaBreaker.h"
 #include "mpi.h"
+#include <cmath>
 
 MPIEnigmaBreaker::MPIEnigmaBreaker( Enigma *enigma, MessageComparator *comparator ) : EnigmaBreaker(enigma, comparator ) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -38,14 +39,59 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	uint rotorLargestSetting = enigma->getLargestRotorSetting();
 
-	// Now scatter it or sth
-	uint maxRange = MAX_ROTORS * 2;
-	// Proportion of load for each process
-	// maxRange - totalProcessTime
-	// iterationsToDo - eachProcessTime
-	int totalTime = 4;
-	int eachTime = 1;
-	// i =
+	// Try to spread the load accordingly - NOT USED YET
+	// if (size > 1) {
+	// 	MPI_Barrier(MPI_COMM_WORLD);
+	// 	// Arbitrary calculations to measure performance
+	// 	double start = MPI_Wtime();
+	// 	for (int i = 0; i < 1000000; i++) {
+	// 		i = i * i;
+	// 	}
+	// 	double end = MPI_Wtime() - start;
+
+	// 	double times[size];
+	// 	double timesSum;
+	// 	MPI_Gather(&end, 1, MPI_DOUBLE, times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+	// 	cout << "[" << rank << "] Moj czas: " << end << endl;
+	// 	if (rank == 0) {
+	// 		cout << "Czasy: {";
+	// 		for (int i = 0; i < size; i++) {
+	// 			timesSum += times[i];
+	// 			cout << times[i] << ", ";
+	// 		}
+	// 		cout << "}" << endl;
+	// 		cout << "[" << rank << "] Suma czasow: " << timesSum << endl;
+	// 	}
+
+	// 	int count[size];
+	// 	if (rank == 0) {
+	// 		for (int i = 0; i < MAX_ROTORS; i++)
+	// 			count[i % size] += 1;
+
+	// 		cout << "Ilosc: {";
+	// 		for (int i = 0; i < size; i++)
+	// 			cout << count[i] << ", ";
+	// 		cout << "}" << endl;
+	// 	}
+
+	// 	int startingPoint[size];
+	// 	int countAggregate = 0;
+	// 	if (rank == 0) {
+	// 		cout << "Start: {";
+	// 		for (int i = 0; i < size; i++) {
+	// 			// Start where the previous process stops
+	// 			startingPoint[i] = countAggregate;
+	// 			if (count[i] + startingPoint[i] > MAX_ROTORS)
+	// 				count[i] = MAX_ROTORS - startingPoint[i];
+	// 			countAggregate += count[i];
+	// 			cout << startingPoint[i] << ", ";
+	// 		}
+	// 		cout << "}" << endl;
+	// 	}
+
+	// 	cout << "[" << rank << "] Summed count: " << countAggregate << endl;
+	// }
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
