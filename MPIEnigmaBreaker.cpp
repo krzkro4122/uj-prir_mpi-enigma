@@ -40,8 +40,12 @@ void MPIEnigmaBreaker::crackMessage() {
 
 	// Now scatter it or sth
 	uint maxRange = MAX_ROTORS * 2;
-	// maxRange ustawien - suma czasow wszystkich procesow
-	// x ustawien - czas poszczegolnego procesu
+	// Proportion of load for each process
+	// maxRange - totalProcessTime
+	// iterationsToDo - eachProcessTime
+	int totalTime = 4;
+	int eachTime = 1;
+	// i =
 
 	/**
 	 * Poniższy kod (w szczególności pętle) jest paskudny. Można to
@@ -70,7 +74,7 @@ void MPIEnigmaBreaker::crackMessage() {
 	MPI_Irecv(&finder, 1, MPI_UNSIGNED, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &request);
 
 	// The first line spreads the compute load to all processes EVENLY.
-	for ( r[0] = rank; r[0] <= rMax[0] - size; r[0] += size )
+	for ( r[0] = rank; r[0] <= rMax[0]; r[0] += size )
 		for ( r[1] = 0; r[1] <= rMax[1]; r[1]++ )
 			for ( r[2] = 0; r[2] <= rMax[2]; r[2]++ )
 				for ( r[3] = 0; r[3] <= rMax[3]; r[3]++ )
@@ -98,7 +102,7 @@ void MPIEnigmaBreaker::crackMessage() {
 	EXIT_ALL_LOOPS:
 
 	// If finder was non-root, send the correct answer to root and use it
-	if (finder != 0 && rank == 0) {
+	if (finder > 0 && rank == 0) {
 		ready = 0;
 		MPI_Recv(r, MAX_ROTORS, MPI_UNSIGNED, finder, 0, MPI_COMM_WORLD, &status);
 		solutionFound( r );  // use
